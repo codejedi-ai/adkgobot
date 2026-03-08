@@ -1,8 +1,8 @@
 .idea/
 __pycache__/
 .ipynb_checkpoints/
-adkbot
 bin/
 *.out
 *.test
 .adkbot/
+/adkbot
