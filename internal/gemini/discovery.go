@@ -22,6 +22,12 @@ func DiscoverNewestFlashModel(ctx context.Context, apiKey string) (string, error
 	return discoverNewestByFamily(ctx, apiKey, flashModelPattern)
 }
 
+// CheckAPIKeyHealth returns nil when the API key is valid and can access model listing.
+func CheckAPIKeyHealth(ctx context.Context, apiKey string) error {
+	_, err := listGenerateContentModels(ctx, apiKey)
+	return err
+}
+
 // DiscoverNewestProModel returns the highest-version active Pro model
 // that supports generateContent.
 func DiscoverNewestProModel(ctx context.Context, apiKey string) (string, error) {
