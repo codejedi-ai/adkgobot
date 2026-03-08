@@ -37,6 +37,7 @@ func main() {
 	root.AddCommand(newOnboardCmd())
 	root.AddCommand(newManualCmd())
 	root.AddCommand(newImageCmd())
+	root.AddCommand(newVideoCmd())
 
 	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -627,6 +628,120 @@ func newImageCmd() *cobra.Command {
 	cmd.Flags().Int32VarP(&numImages, "count", "c", 1, "Number of images to generate")
 	cmd.Flags().BoolVarP(&upload, "upload", "u", false, "Upload generated images to Cloudinary")
 	cmd.Flags().StringVar(&publicID, "public-id", "", "Cloudinary public ID (optional)")
+
+	return cmd
+}
+
+func newVideoCmd() *cobra.Command {
+	var prompt string
+	var model string
+	var aspectRatio string
+	var resolution string
+	var negativePrompt string
+	var durationSec int32
+	var numVideos int32
+	var upload bool
+	var publicID string
+	var wait bool
+
+	cmd := &cobra.Command{
+		Use:   "video",
+		Short: "Generate videos using Gemini/Veo and optionally upload to Cloudinary",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			if strings.TrimSpace(prompt) == "" {
+				return errors.New("--prompt is required")
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 300*time.Second)
+			defer cancel()
+
+			opt := media.VideoOptions{
+				Model:           model,
+				AspectRatio:     aspectRatio,
+				Resolution:      resolution,
+				NegativePrompt:  negativePrompt,
+				DurationSeconds: durationSec,
+				NumberOfVideos:  numVideos,
+				Wait:            wait,
+			}
+
+			fmt.Printf("Generating video with prompt: %s\n", prompt)
+			if opt.Model != "" {
+				fmt.Printf("Model: %s\n", opt.Model)
+			}
+
+			result, err := media.GenerateVideos(ctx, prompt, opt)
+			if err != nil {
+				return fmt.Errorf("video generation failed: %w", err)
+			}
+
+			fmt.Printf("\nOperation: %s\n", result["operation_name"])
+			fmt.Printf("Status: %v\n", result["done"])
+
+			if note, ok := result["note"].(string); ok && note != "" {
+				fmt.Printf("Note: %s\n", note)
+			}
+
+			videos, ok := result["videos"].([]map[string]any)
+			if ok && len(videos) > 0 {
+				for i, vid := range videos {
+					fmt.Printf("\n--- Video %d ---\n", i+1)
+					if uri, ok := vid["uri"].(string); ok {
+						fmt.Printf("URI: %s\n", uri)
+					}
+					if mimeType, ok := vid["mime_type"].(string); ok {
+						fmt.Printf("MIME Type: %s\n", mimeType)
+					}
+
+					if upload {
+						if videoBase64, ok := vid["video_base64"].(string); ok && videoBase64 != "" {
+							data, err := base64.StdEncoding.DecodeString(videoBase64)
+							if err != nil {
+								return fmt.Errorf("failed to decode video: %w", err)
+							}
+
+							uploadCtx, uploadCancel := context.WithTimeout(context.Background(), 120*time.Second)
+							defer uploadCancel()
+
+							mimeType := "video/mp4"
+							if mt, ok := vid["mime_type"].(string); ok {
+								mimeType = mt
+							}
+
+							uploadPID := publicID
+							if uploadPID == "" {
+								uploadPID = fmt.Sprintf("adkbot_video_%d", time.Now().UnixNano())
+							}
+
+							uploadResult, err := media.UploadBytes(uploadCtx, data, mimeType, uploadPID, "video")
+							if err != nil {
+								return fmt.Errorf("upload failed: %w", err)
+							}
+
+							fmt.Printf("Uploaded to Cloudinary:\n")
+							fmt.Printf("  Public ID: %s\n", uploadResult["public_id"])
+							fmt.Printf("  URL: %s\n", uploadResult["secure_url"])
+						} else {
+							fmt.Println("Video data not available for upload (requires wait=true)")
+						}
+					}
+				}
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&prompt, "prompt", "p", "", "Video generation prompt (required)")
+	cmd.Flags().StringVarP(&model, "model", "m", "", "Video model (default: veo-3.1-generate-preview)")
+	cmd.Flags().StringVarP(&aspectRatio, "aspect", "a", "", "Aspect ratio (e.g., 16:9, 1:1, 9:16)")
+	cmd.Flags().StringVarP(&resolution, "resolution", "r", "", "Resolution (e.g., 720p, 1080p)")
+	cmd.Flags().StringVarP(&negativePrompt, "negative", "n", "", "Negative prompt")
+	cmd.Flags().Int32VarP(&durationSec, "duration", "d", 5, "Duration in seconds")
+	cmd.Flags().Int32VarP(&numVideos, "count", "c", 1, "Number of videos to generate")
+	cmd.Flags().BoolVarP(&upload, "upload", "u", false, "Upload generated videos to Cloudinary")
+	cmd.Flags().StringVar(&publicID, "public-id", "", "Cloudinary public ID (optional)")
+	cmd.Flags().BoolVarP(&wait, "wait", "w", true, "Wait for video generation to complete")
 
 	return cmd
 }
