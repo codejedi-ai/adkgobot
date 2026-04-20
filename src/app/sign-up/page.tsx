@@ -15,7 +15,7 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import Typography from '@mui/material/Typography';
 import Container from '@mui/material/Container';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
-import axios from 'axios';
+import { supabase } from '@/utils/supabase';
 import { useRouter } from 'next/navigation';
 
 function Copyright(props: any) {
@@ -33,22 +33,13 @@ function Copyright(props: any) {
 
 const defaultTheme = createTheme();
 
-interface UserDetails {
-    email: FormDataEntryValue | null;
-    password: FormDataEntryValue | null;
-    userType: string;
-    longitude?: number;
-    latitude?: number;
-    trashTypes?: string[];
-    companyName?: string;
-  }
-
 export default function SignUp() {
   const [userType, setUserType] = React.useState('consumer');
   const [longitude, setLongitude] = React.useState('');
   const [latitude, setLatitude] = React.useState('');
   const [trashTypes, setTrashTypes] = React.useState<string[]>([]);
   const [companyName, setCompanyName] = React.useState('');
+  const [error, setError] = React.useState<string | null>(null);
   const router = useRouter();
 
   const handleUserTypeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -66,40 +57,48 @@ export default function SignUp() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setError(null);
     const data = new FormData(event.currentTarget);
 
-    const userDetails: UserDetails = {
-        email: data.get('email'),
-        password: data.get('password'),
-        userType: userType,
-      };
-  
-
-    if (userType === 'consumer') {
-      userDetails.longitude = parseFloat(longitude);
-      userDetails.latitude = parseFloat(latitude);
-      userDetails.trashTypes = trashTypes;
-      userDetails.companyName = companyName;
-    }
-
-    const apiUrl = userType === 'producer' 
-      ? 'https://otn6zi7itj.execute-api.us-east-2.amazonaws.com/Stage1/sign-up/producer' 
-      : 'https://otn6zi7itj.execute-api.us-east-2.amazonaws.com/Stage1/sign-up/consumer';
+    const email = data.get('email') as string;
+    const password = data.get('password') as string;
 
     try {
-      const response = await axios.post(apiUrl, { body: JSON.stringify(userDetails) });
-      const responseData = JSON.parse(response.data.body);
-      console.log(responseData);
-      const { accessToken, refreshToken, idToken, userType } = responseData;
-      console.log(accessToken);
-      localStorage.setItem('accessToken', accessToken);
-      localStorage.setItem('refreshToken', refreshToken);
-      localStorage.setItem('idToken', idToken);
-      localStorage.setItem('userType',userType)
-      console.log('Sign-up successful!');
-      router.push("http://localhost:3000/")
-    } catch (error) {
+      // 1. Sign up with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+      });
+
+      if (authError) throw authError;
+
+      if (authData.user) {
+        // 2. Insert profile data
+        const profileData: any = {
+          id: authData.user.id,
+          user_type: userType,
+          email: email,
+        };
+
+        if (userType === 'consumer') {
+          profileData.longitude = parseFloat(longitude);
+          profileData.latitude = parseFloat(latitude);
+          profileData.trash_types = trashTypes;
+          profileData.company_name = companyName;
+        }
+
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert([profileData]);
+
+        if (profileError) throw profileError;
+
+        console.log('Sign-up successful!');
+        router.push("/");
+      }
+    } catch (error: any) {
       console.error('Error during sign-up:', error);
+      setError(error.message || 'Failed to sign up');
     }
   };
 
@@ -220,6 +219,11 @@ export default function SignUp() {
                 </>
               )}
             </Grid>
+            {error && (
+              <Typography color="error" variant="body2" sx={{ mt: 1 }}>
+                {error}
+              </Typography>
+            )}
             <Button
               type="submit"
               fullWidth
@@ -230,7 +234,7 @@ export default function SignUp() {
             </Button>
             <Grid container justifyContent="flex-end">
               <Grid item>
-                <Link href="http://localhost:3000/sign-in" variant="body2">
+                <Link href="/sign-in" variant="body2">
                   Already have an account? Sign in
                 </Link>
               </Grid>

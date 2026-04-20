@@ -11,7 +11,7 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import Typography from '@mui/material/Typography';
 import Container from '@mui/material/Container';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
-import axios from 'axios';
+import { supabase } from '@/utils/supabase';
 import { useRouter } from 'next/navigation';
 
 function Copyright(props: any) {
@@ -35,34 +35,27 @@ export default function SignIn() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setError(null);
     const data = new FormData(event.currentTarget);
 
     const email = data.get('email') as string;
     const password = data.get('password') as string;
 
     try {
-      const apiUrl = 'https://otn6zi7itj.execute-api.us-east-2.amazonaws.com/Stage1/sign-in';
-      const response = await axios.post(apiUrl, {
-        body: JSON.stringify({ email, password }),
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
 
-      const responseData = JSON.parse(response.data.body);
-      console.log(responseData);
+      if (authError) throw authError;
 
-      const { accessToken, refreshToken, idToken, userType } = responseData;
-      console.log(accessToken);
-
-      // Store tokens and userType in localStorage
-      localStorage.setItem('accessToken', accessToken);
-      localStorage.setItem('refreshToken', refreshToken);
-      localStorage.setItem('idToken', idToken);
-      localStorage.setItem('userType', userType);
-
-      console.log('Sign-in successful!');
-      router.push('/'); // Redirect to home page or dashboard
-    } catch (error) {
+      if (authData.user) {
+        console.log('Sign-in successful!');
+        router.push('/'); 
+      }
+    } catch (error: any) {
       console.error('Error during sign-in:', error);
-      setError('Failed to sign in');
+      setError(error.message || 'Failed to sign in');
     }
   };
 
@@ -120,7 +113,7 @@ export default function SignIn() {
             </Button>
             <Grid container>
               <Grid item>
-                <Link href="http://localhost:3000/sign-up" variant="body2">
+                <Link href="/sign-up" variant="body2">
                   {"Don't have an account? Sign Up"}
                 </Link>
               </Grid>

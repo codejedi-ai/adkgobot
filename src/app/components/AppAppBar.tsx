@@ -11,6 +11,8 @@ import MenuItem from '@mui/material/MenuItem';
 import Drawer from '@mui/material/Drawer';
 import MenuIcon from '@mui/icons-material/Menu';
 import ToggleColorMode from './ToggleColorMode';
+import { useRouter } from 'next/navigation';
+import { supabase } from '@/utils/supabase';
 
 const logoStyle = {
   width: '140px',
@@ -27,26 +29,27 @@ interface AppAppBarProps {
 
 function AppAppBar({ mode, toggleColorMode, isLoggedIn, onLogout }: AppAppBarProps) {
   const [open, setOpen] = React.useState(false);
+  const router = useRouter();
+
   const toggleDrawer = (newOpen: boolean) => () => {
     setOpen(newOpen);
   };
 
   const handleHomeClick = () => {
-    window.open('http://localhost:3000', '_self');
+    router.push('/');
   };
 
   const handleFindClick = () => {
-    window.open('http://localhost:3000/map', '_self');
+    router.push('/map');
   };
 
-  const handleBotClick = () => {
-    const idToken = localStorage.getItem('idToken'); // Read the idToken from localStorage
+  const handleBotClick = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
   
-    if (idToken) {
-      // Navigate to the new URL with the idToken as a query parameter
-      window.open(`http://localhost:3001/scrimba-langchain?idToken=${encodeURIComponent(idToken)}`, '_self');
+    if (token) {
+      window.open(`http://localhost:3001/scrimba-langchain?idToken=${encodeURIComponent(token)}`, '_self');
     } else {
-      // Handle case where idToken is not present
       window.open('http://localhost:3001/scrimba-langchain', '_self');
     }
   };
@@ -160,8 +163,7 @@ function AppAppBar({ mode, toggleColorMode, isLoggedIn, onLogout }: AppAppBarPro
                     color="primary"
                     variant="text"
                     size="small"
-                    component="a"
-                    href="http://localhost:3000/sign-in"
+                    onClick={() => router.push('/sign-in')}
                   >
                     Sign in
                   </Button>
@@ -169,8 +171,7 @@ function AppAppBar({ mode, toggleColorMode, isLoggedIn, onLogout }: AppAppBarPro
                     color="primary"
                     variant="contained"
                     size="small"
-                    component="a"
-                    href="http://localhost:3000/sign-up"
+                    onClick={() => router.push('/sign-up')}
                   >
                     Sign up
                   </Button>
@@ -227,8 +228,7 @@ function AppAppBar({ mode, toggleColorMode, isLoggedIn, onLogout }: AppAppBarPro
                         <Button
                           color="primary"
                           variant="contained"
-                          component="a"
-                          href="http://localhost:3000/sign-up"
+                          onClick={() => router.push('/sign-up')}
                           sx={{ width: '100%' }}
                         >
                           Sign up
@@ -238,8 +238,7 @@ function AppAppBar({ mode, toggleColorMode, isLoggedIn, onLogout }: AppAppBarPro
                         <Button
                           color="primary"
                           variant="outlined"
-                          component="a"
-                          href="http://localhost:3000/sign-in"
+                          onClick={() => router.push('/sign-in')}
                           sx={{ width: '100%' }}
                         >
                           Sign in

@@ -10,6 +10,8 @@ import Footer from '../components/Footer';
 import getLPTheme from '../getLPTheme';
 import Map from '../components/map';
 
+import { supabase } from '@/utils/supabase';
+
 export default function LandingPage() {
   const [mode, setMode] = React.useState<PaletteMode>('light');
   const [showCustomTheme, setShowCustomTheme] = React.useState(true);
@@ -26,19 +28,23 @@ export default function LandingPage() {
   };
 
   useEffect(() => {
-    // Check if tokens exist to determine if the user is logged in
-    const accessToken = localStorage.getItem('accessToken');
-    setIsLoggedIn(!!accessToken);
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setIsLoggedIn(!!session);
+    };
+    checkUser();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setIsLoggedIn(!!session);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const handleLogout = () => {
-    // Clear tokens and user info from localStorage
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('idToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('userType');
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     setIsLoggedIn(false);
-    window.open('http://localhost:3000', '_self');
+    window.location.href = '/';
   };
 
   return (
